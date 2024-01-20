@@ -109,16 +109,19 @@ def do_work(config, device_list):
     def pad(value):
         value = int(value)
         return '0' + str(value) if value < 10 else str(value)
+    
+    def make_light_command(device_type, index, state, unknown1, brightness):
+        command = f'{device_type:02X}{index:02X}{state:02X}{unknown1:02x}0000{brightness:02X}'
+        return checksum(command)
 
-    def make_hex(k, input_hex, change):
-        if input_hex:
+    def make_hex(device_idx, input_hex, change):
+        if input_hex and change:
             try:
-                change = int(change)
-                input_hex = f'{input_hex[:change - 1]}{int(input_hex[change - 1]) + k}{input_hex[change:]}'
-            except:
+                input_hex = f'{input_hex[:change - 1]}{int(input_hex[change - 1]) + device_idx}{input_hex[change:]}'
+            except Exception as e:
                 pass
         return checksum(input_hex)
-
+    
     def make_hex_temp(k, curTemp, setTemp, state):  # 온도조절기 16자리 (8byte) hex 만들기
         if state == 'OFF' or state == 'ON' or state == 'CHANGE':
             tmp_hex = device_list['Thermo'].get('command' + state)
@@ -246,6 +249,16 @@ def do_work(config, device_list):
                                 if debug:
                                     log('[DEBUG] Queued ::: sendcmd: {}, recvcmd: {}'.format(sendcmd, recvcmd))
 
+                    elif device == 'Light':
+                        onoff = 1 if value == 'ON' else 0
+                        sendcmd = make_light_command(0x31, idx, onoff, 0, 10)
+                        if idx == 1:
+                            recvcmd = 'B0000100000A0AC5' # for dimmer ㅠ.ㅠㅠ
+                        else:
+                            recvcmd = [DEVICE_LISTS[device]['list'][idx-1].get('state' + value, 'NULL')]
+                        QUEUE.append({'sendcmd': sendcmd, 'recvcmd': recvcmd, 'count': 0})
+                        log('[DEBUG] Queued ::: sendcmd: {}, recvcmd: {}'.format(sendcmd, recvcmd))
+
                     else:
                         sendcmd = DEVICE_LISTS[device]['list'][idx-1].get('command' + value)
                         if sendcmd:
@@ -264,8 +277,7 @@ def do_work(config, device_list):
                 log('[DEBUG] There is no command for {}'.format('/'.join(topics)))
 
     async def slice_raw_data(raw_data):
-        if elfin_log:
-            log('[SIGNAL] receved: {}'.format(raw_data))
+
         # if COLLECTDATA['cond']:
         #     if len(COLLECTDATA['data']) < 50:
         #         if data not in COLLECTDATA['data']:
@@ -276,12 +288,18 @@ def do_work(config, device_list):
         #             json.dump(COLLECTDATA['data'], make_file, indent="\t")
         #             log('[Complete] Collect 50 signals. See : /share/collected_signal.txt')
         #         COLLECTDATA['data'] = None
+        
+        signals = [raw_data[k:k+16] for k in range(0, len(raw_data), 16)]
+        if elfin_log:
+            for sig in signals:
+                log('[SIGNAL] receved: {}'.format(sig))
 
-        cors = [recv_from_elfin(raw_data[k:k + 16]) for k in range(0, len(raw_data), 16) if raw_data[k:k + 16] == checksum(raw_data[k:k + 16])]
+        cors = [recv_from_elfin(s) for s in signals if s == checksum(s)]
         await asyncio.gather(*cors)
 
     async def recv_from_elfin(data):
         COLLECTDATA['LastRecv'] = time.time_ns()
+
         if data:
             if HOMESTATE.get('EV1power') == 'ON':
                 if COLLECTDATA['EVtime'] < time.time():
@@ -294,6 +312,7 @@ def do_work(config, device_list):
                     break
 
             device_name = prefix_list.get(data[:2])
+
             if device_name == 'Thermo':
                 curTnum = device_list['Thermo']['curTemp']
                 setTnum = device_list['Thermo']['setTemp']
@@ -331,6 +350,12 @@ def do_work(config, device_list):
                 await update_state('EV', 0, 'ON')
                 await update_ev_value(0, val)
                 COLLECTDATA['EVtime'] = time.time() + 3
+
+            elif device_name == 'Light' or data[:2] == 'B0':
+                index = int(data[5]) - 1
+                onoff = 'ON' if data[3] == '1' else 'OFF'
+                await update_state(device_name, index, onoff)
+
             else:
                 num = len(DEVICE_LISTS[device_name]['list'])
                 state = [DEVICE_LISTS[device_name]['list'][k]['stateOFF'] for k in range(num)] + [
@@ -545,13 +570,13 @@ def do_work(config, device_list):
                         if elfin_log:
                             log('[SIGNAL] 신호 전송: {}'.format(send_data))
                         mqtt_client.publish(ELFIN_SEND_TOPIC, bytes.fromhex(send_data['sendcmd']))
-                        # await asyncio.sleep(0.01)
+                        await asyncio.sleep(0.2)
                         if send_data['count'] < MAX_RETRY_SEND_DATA:
                             send_data['count'] = send_data['count'] + 1
                             QUEUE.append(send_data)
                         else:
                             if elfin_log:
-                                log('[SIGNAL] Send over 5 times. Delete a queue: {}'.format(send_data))
+                                log('[SIGNAL] Send over {} times. Delete a queue: {}'.format(MAX_RETRY_SEND_DATA, send_data))
             except Exception as err:
                 log('[ERROR] send_to_elfin(): {}'.format(err))
                 return True

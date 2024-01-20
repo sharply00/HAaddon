@@ -4,7 +4,7 @@
     "Number": 3,
     "commandOFF": "3101000000000032",
     "commandON": "3101010000000A33",
-    "commandNUM": 6,
+    "commandNUM": 4,
 
     "stateOFF": "B0000100000000B1",
     "stateON": "B0010100000000B2",

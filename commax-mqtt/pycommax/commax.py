@@ -13,7 +13,7 @@ HA_TOPIC = 'commax'
 STATE_TOPIC = HA_TOPIC + '/{}/{}/state'
 ELFIN_TOPIC = 'ew11'
 ELFIN_SEND_TOPIC = ELFIN_TOPIC + '/send'
-MAX_RETRY_SEND_DATA = 10
+MAX_RETRY_SEND_DATA = 1
 
 def log(string):
     date = time.strftime('%Y-%m-%d %p %I:%M:%S', time.localtime(time.time()))
@@ -112,7 +112,9 @@ def do_work(config, device_list):
     
     def make_light_command(device_type, index, state, unknown1, brightness):
         command = f'{device_type:02X}{index:02X}{state:02X}{unknown1:02x}0000{brightness:02X}'
-        return checksum(command)
+        chksig = device_type + 0x80
+        chk_command = f'{chksig:02X}{index:02X}{state:02X}{unknown1:02x}0000{brightness:02X}'
+        return checksum(command) + checksum(chk_command)
 
     def make_hex(device_idx, input_hex, change):
         if input_hex and change:
@@ -570,7 +572,7 @@ def do_work(config, device_list):
                         if elfin_log:
                             log('[SIGNAL] 신호 전송: {}'.format(send_data))
                         mqtt_client.publish(ELFIN_SEND_TOPIC, bytes.fromhex(send_data['sendcmd']))
-                        await asyncio.sleep(0.2)
+                        await asyncio.sleep(1)
                         if send_data['count'] < MAX_RETRY_SEND_DATA:
                             send_data['count'] = send_data['count'] + 1
                             QUEUE.append(send_data)

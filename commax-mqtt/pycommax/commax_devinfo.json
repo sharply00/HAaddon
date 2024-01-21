@@ -33,14 +33,13 @@
     "commandOFF": "2201000100000024",
     "commandON": "2201010100000025",
 
-    "stateOFF": "A0000100001500B6",
-    "stateON": "A0010100001500B7"
+    "stateOFF": "A000010000D70078",
+    "stateON": "A001010000D70079"
   },
   "Gas": {
     "type": "button",
     "Number": 1,
     "commandOFF": "1101800000000092",
-
     "stateOFF": "9050500000000030",
     "stateON": "90A0A000000000D0"
   },
@@ -51,8 +50,8 @@
     "commandON": "7A0101010000007D",
     "commandNUM": 4,
 
-    "stateOFF": "F90001110000000B",
-    "stateON": "F90101110000000C",
+    "stateOFF": "F900011000002732",
+    "stateON": "F901011000002732",
     "stateNUM": 6
   },
   "Fan": {
@@ -64,13 +63,12 @@
     "speedNUM": 8,
 
     "stateOFF": "F6000100000000F7",
-    "stateON": "F6040101000000FC"
+    "stateON": "F6010100000000F8"
   },
   "EV": {
     "type": "button",
     "Number": 1,
-    "commandON": "A0010100081500BF",
-
+    "commandON": "A001010000D70079",
     "stateON": "2301000000000024",
     "BasementFloor": 2
   }
